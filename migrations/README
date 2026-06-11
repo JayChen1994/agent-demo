@@ -1,0 +1,16 @@
+Alembic 异步迁移目录。
+
+常用命令（在项目根目录、激活 venv 后执行）：
+
+  # 根据模型变更自动生成迁移脚本
+  alembic revision --autogenerate -m "描述"
+
+  # 升级到最新
+  alembic upgrade head
+
+  # 回退一个版本
+  alembic downgrade -1
+
+  # 查看当前版本 / 历史
+  alembic current
+  alembic history

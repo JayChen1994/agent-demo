@@ -1,0 +1,41 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: agent-demo-mysql
+    restart: on-failure:3
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: agent_demo
+      TZ: Asia/Shanghai
+    command:
+      # 用卷内子目录做 datadir，规避 Docker Desktop 卷根目录 lost+found 导致的初始化失败
+      - --datadir=/var/lib/mysql/data
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-demo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mysql_data:
+  redis_data:
