@@ -52,6 +52,28 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    # 真实 LLM（Gemini via google-genai）
+    GOOGLE_API_KEYS: str = ""  # CSV 多 key
+    GEMINI_BACKEND: Literal["vertex_ai", "google_ai"] = "vertex_ai"
+    GOOGLE_CLOUD_LOCATION: str = "us-central1"
+    LLM_MODEL: str = "gemini-3.1-pro-preview"
+    LLM_TIMEOUT_SEC: float = 120.0
+    LLM_THINKING_LEVEL: Literal["low", "high"] = "low"  # demo 用 low 更快；要质量改 high
+
+    # 真实生图（portrait_gen 网关）
+    PORTRAIT_GEN_BASE_URL: str = ""
+    PORTRAIT_GEN_PROVIDER: str = "openai"
+    PORTRAIT_GEN_MODEL_ID: str = "openai:t2i_image_2"
+    PORTRAIT_GEN_MODEL: str = "text2image_gpt_image_2"
+    IMAGE_WIDTH: int = 512
+    IMAGE_HEIGHT: int = 768
+    IMAGE_GEN_TIMEOUT_SEC: float = 300.0
+    IMAGE_GEN_CONCURRENCY: int = 4  # 进程内并发上限（替代跨 Pod Redis 信号量）
+
+    @property
+    def google_api_keys_list(self) -> list[str]:
+        return [k.strip() for k in self.GOOGLE_API_KEYS.split(",") if k.strip()]
+
     @computed_field
     @property
     def DATABASE_URL(self) -> str:

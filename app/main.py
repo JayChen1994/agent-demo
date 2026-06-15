@@ -1,6 +1,9 @@
 """应用工厂：组装日志、中间件、异常处理、路由。"""
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -9,6 +12,8 @@ from app.core.logging import setup_logging
 from app.core.response import success
 from app.lifespan import lifespan
 from app.middleware.logging import RequestLoggingMiddleware
+
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_app() -> FastAPI:
@@ -41,6 +46,10 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["系统"], summary="健康检查")
     async def health():
         return success({"status": "ok", "env": settings.ENV})
+
+    @app.get("/", include_in_schema=False)
+    async def index():
+        return FileResponse(_STATIC_DIR / "index.html")
 
     return app
 
