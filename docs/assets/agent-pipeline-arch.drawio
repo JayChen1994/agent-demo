@@ -234,4 +234,94 @@
       </root>
     </mxGraphModel>
   </diagram>
+
+  <diagram name="Registration-to-Execution" id="diagram-seq">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2480" pageHeight="1780" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="sq_title" value="编排「注册 → 配置 → 执行」时序图（含 DAG 分波并发 · Agent 回环 · SSE 实时事件）" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="12" width="1200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- phase bands (background) -->
+        <mxCell id="sq_bandA" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=none;opacity=25;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="2400" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="sq_bandB" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=none;opacity=22;" vertex="1" parent="1">
+          <mxGeometry x="40" y="215" width="2400" height="605" as="geometry" />
+        </mxCell>
+        <mxCell id="sq_bandC" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=none;opacity=18;" vertex="1" parent="1">
+          <mxGeometry x="40" y="825" width="2400" height="870" as="geometry" />
+        </mxCell>
+
+        <!-- lifelines -->
+        <mxCell id="sq_ll0" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="150" y="110" as="sourcePoint" /><mxPoint x="150" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll1" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="450" y="110" as="sourcePoint" /><mxPoint x="450" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll2" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="110" as="sourcePoint" /><mxPoint x="750" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll3" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1050" y="110" as="sourcePoint" /><mxPoint x="1050" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll4" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1350" y="110" as="sourcePoint" /><mxPoint x="1350" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll5" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1650" y="110" as="sourcePoint" /><mxPoint x="1650" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll6" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1950" y="110" as="sourcePoint" /><mxPoint x="1950" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_ll7" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="2250" y="110" as="sourcePoint" /><mxPoint x="2250" y="1700" as="targetPoint" /></mxGeometry></mxCell>
+
+        <!-- participant headers -->
+        <mxCell id="sq_p0" value="前端 UI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="60" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p1" value="API 接口层&#xa;endpoints" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="360" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p2" value="PipelineService&#xa;业务层" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="660" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p3" value="STEP_REGISTRY&#xa;进程级注册表" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="960" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p4" value="PipelineExecutor&#xa;通用执行器" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1260" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p5" value="Step / AgentStep&#xa;(+LLM / 生图)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1560" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p6" value="RunBroker&#xa;SSE 事件总线" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1860" y="60" width="180" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_p7" value="MySQL&#xa;template/run/step_run" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="2160" y="60" width="180" height="50" as="geometry" /></mxCell>
+
+        <!-- phase titles -->
+        <mxCell id="sq_tA" value="① 注册阶段 · 进程 import 时（装饰器登记，零配置）" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#3a5a8c;" vertex="1" parent="1"><mxGeometry x="60" y="126" width="700" height="22" as="geometry" /></mxCell>
+        <mxCell id="sq_tB" value="② 编排配置阶段 · 注册表 → 默认 DAG → 开关/增减步骤（版本化入库）" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#3a6a3a;" vertex="1" parent="1"><mxGeometry x="60" y="222" width="760" height="22" as="geometry" /></mxCell>
+        <mxCell id="sq_tC" value="③ 执行阶段 · 后台协程：IO 契约推导依赖 → 拓扑分波并发 → Agent 回环 → SSE 实时下发" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#a8641a;" vertex="1" parent="1"><mxGeometry x="60" y="832" width="900" height="22" as="geometry" /></mxCell>
+
+        <!-- Phase A: registration note -->
+        <mxCell id="sq_regnote" value="各 step 模块顶部 @register_step：实例化并登记到 STEP_REGISTRY[key]&#xa;（声明 inputs / outputs / kind 的 IO 契约，前端与执行器据此推导 DAG）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=8;" vertex="1" parent="1"><mxGeometry x="810" y="150" width="480" height="50" as="geometry" /></mxCell>
+        <mxCell id="sq_regarrow" style="html=1;endArrow=block;dashed=1;rounded=0;fontSize=12;startArrow=none;strokeColor=#d6b656;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1050" y="200" as="sourcePoint" /><mxPoint x="1050" y="215" as="targetPoint" /></mxGeometry></mxCell>
+
+        <!-- Phase B: config messages -->
+        <mxCell id="sq_mB1" value="GET /pipeline/steps" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="150" y="260" as="sourcePoint" /><mxPoint x="450" y="260" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB2" value="list_steps()" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="450" y="310" as="sourcePoint" /><mxPoint x="750" y="310" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB3" value="读取注册表" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="360" as="sourcePoint" /><mxPoint x="1050" y="360" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB4" value="StepInfo[]（kind / inputs / outputs / group / default_enabled）" style="html=1;endArrow=open;dashed=1;endFill=0;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1050" y="410" as="sourcePoint" /><mxPoint x="150" y="410" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB5" value="GET /pipeline/templates" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="150" y="470" as="sourcePoint" /><mxPoint x="450" y="470" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB6" value="ensure_default_template()" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="450" y="520" as="sourcePoint" /><mxPoint x="750" y="520" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB7" value="按注册表推导默认 DAG" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="570" as="sourcePoint" /><mxPoint x="1050" y="570" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB8" value="首次落库 / 同步注册表新增步骤（保留 enabled 选择）" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="620" as="sourcePoint" /><mxPoint x="2250" y="620" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB9" value="默认模板 nodes:[{key, enabled}] → 前端按 IO 契约分层渲染 L0..Ln" style="html=1;endArrow=open;dashed=1;endFill=0;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="2250" y="670" as="sourcePoint" /><mxPoint x="150" y="670" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB10" value="PUT /templates（开关 / 增减步骤）" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="150" y="730" as="sourcePoint" /><mxPoint x="450" y="730" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB11" value="update_template() → version+1" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="450" y="775" as="sourcePoint" /><mxPoint x="750" y="775" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mB12" value="保存 DAG（数据即流程，无需改代码）" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="805" as="sourcePoint" /><mxPoint x="2250" y="805" as="targetPoint" /></mxGeometry></mxCell>
+
+        <!-- Phase C: execution messages -->
+        <mxCell id="sq_mC1" value="POST /pipeline/runs" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="150" y="868" as="sourcePoint" /><mxPoint x="450" y="868" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC2" value="create_run(template_id, input_text)" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="450" y="910" as="sourcePoint" /><mxPoint x="750" y="910" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC3" value="建 PipelineRun(status=pending)" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="952" as="sourcePoint" /><mxPoint x="2250" y="952" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_selfC4" value="enabled = 启用步骤集合&#xa;asyncio.create_task(_execute)（强引用持有）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="600" y="985" width="300" height="44" as="geometry" /></mxCell>
+        <mxCell id="sq_mC5" value="{ run_id, status } 立即返回（不阻塞请求）" style="html=1;endArrow=open;dashed=1;endFill=0;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="450" y="1055" as="sourcePoint" /><mxPoint x="150" y="1055" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC6" value="GET /runs/{id}/events（SSE 订阅 broker + 历史回放）" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="150" y="1100" as="sourcePoint" /><mxPoint x="1950" y="1100" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC7" value="executor.run(enabled)  〔后台协程〕" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;strokeColor=#d79b00;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="750" y="1150" as="sourcePoint" /><mxPoint x="1350" y="1150" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_selfC8" value="build_dependencies()&#xa;outputs→inputs 推导依赖 + 拓扑分波" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1200" y="1185" width="300" height="44" as="geometry" /></mxCell>
+
+        <!-- loop frame -->
+        <mxCell id="sq_loop" value="loop  〔每一波 while 未完成：取就绪步骤 deps ⊆ resolved，波内 asyncio.gather 并发；缺上游产物自动 skipped〕" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=12;fontStyle=2;fontColor=#a8641a;" vertex="1" parent="1"><mxGeometry x="120" y="1255" width="2200" height="320" as="geometry" /></mxCell>
+        <mxCell id="sq_mC9" value="波内并发 _run_one → step.run(ctx)（校验输入齐备）" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1350" y="1305" as="sourcePoint" /><mxPoint x="1650" y="1305" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_selfC10" value="kind=agent → LangGraph StateGraph：draft → critique →（有问题）revise ↺ → 通过 ✓" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1470" y="1340" width="360" height="44" as="geometry" /></mxCell>
+        <mxCell id="sq_mC11" value="写回黑板(outputs) + record step_run(running / completed / skipped)" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1650" y="1420" as="sourcePoint" /><mxPoint x="2250" y="1420" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC12" value="emit step_started / step_completed · agent_round · keyframe" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1650" y="1470" as="sourcePoint" /><mxPoint x="1950" y="1470" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC13" value="SSE 实时增量下发（节点变色 / Agent 自检 / 关键帧画廊）" style="html=1;endArrow=open;dashed=1;endFill=0;rounded=0;fontSize=12;startArrow=none;strokeColor=#82b366;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1950" y="1520" as="sourcePoint" /><mxPoint x="150" y="1520" as="targetPoint" /></mxGeometry></mxCell>
+
+        <!-- finish -->
+        <mxCell id="sq_mC14" value="PipelineRun(status=completed) + blackboard 落库" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1350" y="1610" as="sourcePoint" /><mxPoint x="2250" y="1610" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC15" value="emit run_finished" style="html=1;endArrow=block;rounded=0;fontSize=12;startArrow=none;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1350" y="1650" as="sourcePoint" /><mxPoint x="1950" y="1650" as="targetPoint" /></mxGeometry></mxCell>
+        <mxCell id="sq_mC16" value="run_finished（SSE 流结束，前端收尾）" style="html=1;endArrow=open;dashed=1;endFill=0;rounded=0;fontSize=12;startArrow=none;strokeColor=#82b366;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="1950" y="1688" as="sourcePoint" /><mxPoint x="150" y="1688" as="targetPoint" /></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
 </mxfile>

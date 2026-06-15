@@ -2,6 +2,7 @@
 from app.engine.steps import (  # noqa: F401
     beat_split,
     char_extract,
+    final_montage,
     image_prompt,
     keyframe_render,
     scene_plan,

@@ -62,3 +62,28 @@ def all_steps() -> list[PipelineStep]:
 
 def get_step(key: str) -> PipelineStep | None:
     return STEP_REGISTRY.get(key)
+
+
+# ─────────────────────── 档位 C：运行时自定义步骤 ───────────────────────
+# 自定义步骤 key 统一以 custom_ 开头，与代码内置步骤区分（可覆盖、可注销）。
+CUSTOM_KEY_PREFIX = "custom_"
+
+
+def is_custom_key(key: str) -> bool:
+    return key.startswith(CUSTOM_KEY_PREFIX)
+
+
+def register_custom_step(step: PipelineStep) -> None:
+    """注册/覆盖一个「运行时自定义步骤」（来自模板数据，非 import 时登记）。
+
+    与 ``register_step`` 不同：允许覆盖（业务可反复编辑同一步骤），
+    但 key 必须以 ``custom_`` 开头，避免污染内置步骤。
+    """
+    if not is_custom_key(step.meta.key):
+        raise ValueError(f"自定义步骤 key 必须以 {CUSTOM_KEY_PREFIX} 开头：{step.meta.key}")
+    STEP_REGISTRY[step.meta.key] = step
+
+
+def unregister_custom_step(key: str) -> None:
+    if is_custom_key(key):
+        STEP_REGISTRY.pop(key, None)

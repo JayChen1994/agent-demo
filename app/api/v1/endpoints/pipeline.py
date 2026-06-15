@@ -65,14 +65,36 @@ async def create_run(payload: RunCreate, db: DBSession):
     return success({"run_id": run.id, "status": run.status}, msg="已开始执行")
 
 
-@router.get("/runs/{run_id}", summary="运行详情（含各步骤状态）")
+@router.get("/runs", summary="运行历史列表")
+async def list_runs(db: DBSession):
+    runs = await pipeline_service.list_runs(db)
+    return success(
+        [
+            {
+                "id": r.id,
+                "status": r.status,
+                "template_id": r.template_id,
+                "template_version": r.template_version,
+                "input_preview": (r.input_text or "")[:40],
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in runs
+        ]
+    )
+
+
+@router.get("/runs/{run_id}", summary="运行详情（含各步骤状态 + 事件流回放）")
 async def get_run(run_id: int, db: DBSession):
-    detail = await pipeline_service.get_run_detail(db, run_id)
+    detail = await pipeline_service.get_run_detail(db, run_id, with_events=True)
     run = detail["run"]
     return success(
         {
             "id": run.id,
             "status": run.status,
+            "template_id": run.template_id,
+            "template_version": run.template_version,
+            "input_text": run.input_text,
+            "created_at": run.created_at.isoformat() if run.created_at else None,
             "blackboard": run.blackboard,
             "error": run.error,
             "steps": [
@@ -87,6 +109,8 @@ async def get_run(run_id: int, db: DBSession):
                 }
                 for s in detail["steps"]
             ],
+            # 事件流（落库回放）：直接复用 SSE 事件结构，前端可用同一套渲染
+            "events": [e.payload for e in detail.get("events", [])],
         }
     )
 

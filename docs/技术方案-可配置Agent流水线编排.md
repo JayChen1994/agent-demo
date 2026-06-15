@@ -79,6 +79,70 @@ critique 先做确定性本地校验（image_hook 是否齐备）再交模型做
 
 运行时流程（含 critic 回环）见 `assets/agent-pipeline-arch.drawio`（第 2 页 `Runtime-Flow`）。
 
+### 2.3 编排「注册 → 配置 → 执行」时序
+
+完整时序见 `assets/agent-pipeline-arch.drawio`（第 3 页 `Registration-to-Execution`）。三个阶段：
+
+1. **注册阶段（进程 import 时）**：各 step 模块顶部的 `@register_step` 在 import 时实例化并登记进 `STEP_REGISTRY`，
+   每个 Step 携带 `inputs/outputs/kind` 的 IO 契约——这是后续依赖推导与前端分层的唯一数据来源；
+2. **配置阶段**：前端拉取注册表渲染步骤卡片；`ensure_default_template` 把「注册表」翻译成默认 DAG 入库，
+   业务开关/增减步骤 → `PUT /templates` 版本化保存（**数据即流程，不改代码**）；
+3. **执行阶段**：`POST /runs` 建运行并 `create_task` 后台执行后立即返回 `run_id`；执行器按 IO 契约推导依赖、
+   拓扑分波并发；Agent 步骤走 LangGraph 回环；每步写黑板 + 落库 + 经 `RunBroker` 推 SSE，前端实时可视化。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as 前端 UI
+    participant API as API 接口层
+    participant SVC as PipelineService
+    participant REG as STEP_REGISTRY
+    participant EXE as PipelineExecutor
+    participant STP as Step/AgentStep(+LLM/生图)
+    participant SSE as RunBroker(SSE)
+    participant DB as MySQL
+
+    Note over REG: ① 注册（import 时）@register_step 登记 Step(IO 契约)
+
+    rect rgb(235,245,235)
+    Note over UI,DB: ② 编排配置阶段
+    UI->>API: GET /steps
+    API->>SVC: list_steps()
+    SVC->>REG: 读取注册表
+    REG-->>UI: StepInfo[]（kind/inputs/outputs）
+    UI->>API: GET /templates
+    API->>SVC: ensure_default_template()
+    SVC->>REG: 按注册表推导默认 DAG
+    SVC->>DB: 落库 / 同步新增步骤
+    DB-->>UI: 默认模板 nodes:[{key,enabled}] → 前端分层 L0..Ln
+    UI->>API: PUT /templates（开关/增减步骤）
+    API->>SVC: update_template() version+1
+    SVC->>DB: 保存 DAG（数据即流程）
+    end
+
+    rect rgb(255,240,225)
+    Note over UI,DB: ③ 执行阶段
+    UI->>API: POST /runs
+    API->>SVC: create_run()
+    SVC->>DB: 建 PipelineRun(pending)
+    SVC->>SVC: enabled=启用项; create_task(_execute)
+    API-->>UI: run_id（立即返回）
+    UI->>SSE: GET /runs/{id}/events（订阅+回放）
+    SVC->>EXE: executor.run(enabled)〔后台〕
+    EXE->>EXE: build_dependencies → 拓扑分波
+    loop 每一波 while 未完成
+        EXE->>STP: 并发 _run_one → step.run(ctx)
+        STP->>STP: agent: draft→critique→(revise↺)→通过✓
+        STP->>DB: 写黑板 + record step_run
+        STP->>SSE: emit step_*/agent_round/keyframe
+        SSE-->>UI: SSE 实时下发
+    end
+    EXE->>DB: run completed + blackboard
+    EXE->>SSE: emit run_finished
+    SSE-->>UI: run_finished（流结束）
+    end
+```
+
 ---
 
 ## 3. Demo 实现说明
@@ -92,7 +156,7 @@ app/engine/                 # 编排引擎内核
 ├── agent.py                # AgentStep 基类（LangGraph StateGraph critic 回环）
 ├── prompts.py              # 提示词 + 结构化输出 Schema 配置中心（提示词可配置化）
 ├── executor.py             # 通用 DAG 执行器（依赖推导 + 分波并发 + skip）
-└── steps/                  # 7 个示例步骤
+└── steps/                  # 示例步骤（层级 L0..Ln 由 IO 契约自动推导，非写死）
     ├── text_utils.py       # 纯代码文本工具（无 LLM）
     ├── script_ingest.py    # 剧本解析 (code)        out: episodes
     ├── char_extract.py     # 角色抽取 (llm·真实)     in: episodes  out: characters
@@ -100,7 +164,9 @@ app/engine/                 # 编排引擎内核
     ├── beat_split.py       # 分镜拆分 (agent·真实)   in: episodes,characters,scenes  out: shots
     ├── image_prompt.py     # 图像提示词 (llm·真实)   in: shots,characters  out: image_prompts
     ├── keyframe_render.py  # 关键帧生图 (io·真实)    in: image_prompts  out: keyframes
-    └── summary.py          # 剧情摘要 (code·默认关闭) in: episodes  out: summary
+    ├── summary.py          # 剧情摘要 (code·默认关闭) in: episodes  out: summary
+    ├── final_montage.py    # 成片合成 (code·默认关闭) in: shots,keyframes  out: montage（演示新增 L5）
+    └── generic.py          # GenericLLMStep：档位 C 数据化通用步骤（IO/提示词来自模板，前端零代码新增）
 app/services/llm_client.py  # ★ 真实 Gemini 客户端（自包含，多 key 轮询，结构化 JSON）
 app/services/image_client.py# ★ 真实 portrait_gen 生图客户端（自包含，提交+轮询，信号量限流）
 app/models/pipeline.py      # PipelineTemplate / PipelineRun / PipelineStepRun
@@ -187,7 +253,103 @@ script_ingest ──┬─→ char_extract ─┐
 
 ---
 
-## 6. 与现网的落地路径
+## 6. 可扩展性：如何插入新流程 / 新增一层（L5）
+
+> 这是最常被问到的问题：**「L0~L4 是不是写死的？我想新增一个流程插进去、或新增一个 L5 怎么办？」**
+
+**先澄清一个关键点：L0~L4 不是写死的层级，而是引擎按 IO 契约（`outputs → inputs`）实时拓扑分波算出来的。**
+前端 `layers()` 与执行器 `build_dependencies()` 用的是同一套推导规则：
+
+- L0 = 无依赖的步骤（`script_ingest`）；
+- L1 = 依赖 `episodes` 的（`char_extract`、`scene_plan`，自动并行）；
+- L2 = `beat_split`（三路汇聚）→ L3 = `image_prompt` → L4 = `keyframe_render`。
+
+所以「层级」是产物依赖关系的副产品，**没有任何一行代码写死 L0..L4**。开关（`enabled`）只是「这一格要不要参与」，
+而**真正的「插入/重排/新增一层」靠的是 IO 契约**——这正是声明式编排相对「写死顺序」的核心优势。
+
+### 6.1 三档灵活度（按改动成本递增）
+
+| 档位 | 诉求 | 做法 | 是否改引擎 | 是否需发版 |
+|------|------|------|-----------|-----------|
+| **A. 开关 / 重排现有步骤** | 临时增减一格 | 前端开关 → `PUT /templates` | 否 | 否 |
+| **B. 新增一个流程 / 新增一层 L5** | 加一种新处理环节 | 新增一个 Step 文件（声明 IO 契约）→ 自动入 DAG | **否** | 是（加了 .py） |
+| **C. 业务零代码自助加步骤** | 运营态不发版也能加 | 「声明式通用 Step」+ 模板里存 IO/提示词 | 引擎加一个通用步骤类 | 否 |
+
+### 6.2 档位 B：新增一层 L5（本 Demo 已落地样板）
+
+回答「新增一个 L5」最直接：**只写一个新 Step 文件，声明它依赖谁、产出什么，引擎自动把它编排到正确的层。**
+本仓库已加入 `app/engine/steps/final_montage.py` 作为样板——它依赖 L4 的产物 `keyframes`，于是自动落到 **L5**：
+
+```python
+@register_step
+class FinalMontageStep(PipelineStep):
+    meta = StepMeta(
+        key="final_montage", name="成片合成", kind="code",
+        inputs=("shots", "keyframes"),   # ← 依赖 L4 关键帧，引擎据此把它排到 keyframe_render 之后
+        outputs=("montage",),
+        default_enabled=False,           # 默认关闭，前端一键开启即并入 DAG
+    )
+    async def run(self, ctx): ...
+```
+
+加完后用引擎自身的依赖推导验证（无需真实生图）：
+
+```text
+L0: script_ingest
+L1: char_extract, scene_plan
+L2: beat_split
+L3: image_prompt
+L4: keyframe_render
+L5: final_montage(<- beat_split, keyframe_render)   ← 新层自动出现
+```
+
+**全程没有改 `executor.py`、没有改前端分层逻辑、没有改任何已有步骤**——这就是声明式 DAG 的扩展形态：
+
+- **插到中间**：让新步骤的 `inputs` 取已有产物、`outputs` 被下游已有步骤消费，它会被自动夹在中间层；
+- **新增一层 L5**：让 `inputs` 依赖当前最末层的产物（如 `keyframes`），它自然成为新的最后一层；
+- **拉一条并行支线**：`inputs` 取上游产物、`outputs` 不被任何人消费，它会与同层步骤并行、互不阻塞。
+
+### 6.3 档位 C：让业务「零代码」自助加步骤（运营态不发版）—— 已落地
+
+档位 B 仍需写一个 .py 并发版。档位 C 进一步把「步骤定义」也数据化，业务在前端 UI 直接配出一个步骤即可，
+**无需写 Python、无需发版**。本 Demo 已完整实现并端到端跑通：
+
+1. **声明式通用 Step**：`app/engine/steps/generic.py` 的 `GenericLLMStep`，其 `inputs/outputs/prompt`
+   全部来自「模板节点参数」而非写死在类里；运行时把声明的 inputs 从黑板打包成 JSON 喂给 Gemini，
+   约束模型只回声明的 outputs，写回黑板；
+2. **模板节点带定义**：`DagNode` 从 `{key, enabled}` 扩展为
+   `{key, enabled, custom, name, kind, inputs, outputs, prompt}`，自定义步骤的完整定义随模板版本化入库；
+3. **运行时水合 + 注册**：服务层 `_sync_custom_steps()` 在「保存模板 / 进程重启拉取模板 / 发起运行」三处
+   据模板数据实例化 `GenericLLMStep` 注册进 `STEP_REGISTRY`（key 统一 `custom_` 前缀，可覆盖、可注销）；
+4. **执行器 / 依赖推导 / 分波并发 / 落库 / SSE 全部零改**——因为它们只认 `StepMeta` 的 IO 契约，
+   不关心步骤是「代码写的」还是「配置出来的」。
+
+前端（`app/static/index.html`）新增「**+ 自定义步骤**」入口：填写 名称 / 输入 / 输出 / 提示词
+（输入可点候选黑板字段一键填入）→ 添加即落库，新步骤按 IO 契约自动出现在 DAG 的正确层级、可开关、可删除、可执行。
+
+```
+前端「+ 自定义步骤」→ PUT /templates（节点带完整定义）
+                         │
+                         ├─ 服务层 _sync_custom_steps → 实例化 GenericLLMStep → 注册进 STEP_REGISTRY
+                         │
+发起运行 → 执行器照常按 outputs→inputs 推导依赖 → 自定义步骤自动并入分波并发执行 → SSE 实时回显
+```
+
+> 实测：UI 新增「角色一句话标签」自定义步骤（in=`characters`，out=`catchphrase`），保存后立即运行，
+> 引擎自动把它编排进 DAG 并真实调用 Gemini 产出
+> `{"林深":"背负都市重压的疲惫夜归人","苏曼":"心事重重的暗夜守候者"}`。
+
+> 工程要点：保存模板用 `db.commit()` 显式提交（而非仅 flush），保证「保存后立即运行」能读到最新 DAG，
+> 规避读到旧快照导致自定义步骤未被编排。
+
+> 一句话：**档位 A/B/C 现在都能用**；把「IO 契约 + 提示词」从代码搬到模板数据后，
+> 执行内核（依赖推导 / 分波并发 / skip / 落库 / SSE）一行都没改。这正是当初把编排做成「数据驱动」的回报。
+>
+> 再进一步（未做）：通用步骤可扩展 `GenericHttpStep` 调外部服务、或用入口点/动态 import 做插件式热加载。
+
+---
+
+## 7. 与现网的落地路径
 
 采用 **Strangler（绞杀者）渐进式迁移** + Feature Flag，零停机替换：
 
@@ -203,7 +365,7 @@ script_ingest ──┬─→ char_extract ─┐
 
 ---
 
-## 7. 一键复现
+## 8. 一键复现
 
 ```bash
 cd agent-demo

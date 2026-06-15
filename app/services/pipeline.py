@@ -14,9 +14,14 @@ from app.core.exceptions import BizError, ErrorCode
 from app.db.session import AsyncSessionLocal
 from app.engine.context import RunContext
 from app.engine.executor import PipelineExecutor
-from app.engine.registry import STEP_REGISTRY
+from app.engine.registry import STEP_REGISTRY, is_custom_key, register_custom_step
 import app.engine.steps  # noqa: F401  确保所有步骤被 import 注册
-from app.models.pipeline import PipelineRun, PipelineStepRun, PipelineTemplate
+from app.models.pipeline import (
+    PipelineRun,
+    PipelineRunEvent,
+    PipelineStepRun,
+    PipelineTemplate,
+)
 from app.schemas.pipeline import StepInfo, TemplateUpdate
 
 
@@ -59,6 +64,7 @@ def get_broker(run_id: int) -> RunBroker:
 class PipelineService:
     # ------------------------------------------------------------- 注册表
     def list_steps(self) -> list[StepInfo]:
+        # 仅返回代码内置步骤；自定义步骤（custom_*）随模板下发，避免进程级串台
         return [
             StepInfo(
                 key=s.meta.key,
@@ -71,7 +77,32 @@ class PipelineService:
                 default_enabled=s.meta.default_enabled,
             )
             for s in STEP_REGISTRY.values()
+            if not is_custom_key(s.meta.key)
         ]
+
+    # ------------------------------------------------------------- 自定义步骤（档位 C）
+    @staticmethod
+    def _sync_custom_steps(nodes: list[dict]) -> None:
+        """把模板里的「自定义步骤」定义实例化并注册进 STEP_REGISTRY。
+
+        进程重启后注册表只剩内置步骤，靠本方法据模板数据「水合」回自定义步骤；
+        业务编辑步骤后也靠它把最新定义覆盖进注册表。执行器据此即可调度，无需改动。
+        """
+        from app.engine.steps.generic import GenericLLMStep
+
+        for n in nodes:
+            if not n.get("custom"):
+                continue
+            step = GenericLLMStep(
+                key=n["key"],
+                name=n.get("name") or n["key"],
+                inputs=n.get("inputs") or [],
+                outputs=n.get("outputs") or [],
+                prompt=n.get("prompt") or "",
+                description=n.get("description") or "",
+                kind=n.get("kind") or "llm",
+            )
+            register_custom_step(step)
 
     # ------------------------------------------------------------- 模板
     async def ensure_default_template(self, db: AsyncSession) -> PipelineTemplate:
@@ -80,28 +111,25 @@ class PipelineService:
             select(PipelineTemplate).where(PipelineTemplate.is_default.is_(True))
         )
         if existing:
-            # 同步注册表新增/移除的步骤（保留已有 enabled 选择）
-            known = {n["key"]: n.get("enabled") for n in existing.dag.get("nodes", [])}
-            registry_keys = list(STEP_REGISTRY.keys())
-            merged = [
-                {
-                    "key": k,
-                    "enabled": known[k]
-                    if k in known
-                    else STEP_REGISTRY[k].meta.default_enabled,
-                }
-                for k in registry_keys
-            ]
-            if [n["key"] for n in existing.dag.get("nodes", [])] != registry_keys or any(
-                n.get("enabled") != m["enabled"]
-                for n, m in zip(existing.dag.get("nodes", []), merged)
-            ):
-                existing.dag = {"nodes": merged}
-                logger.info("默认模板已按注册表同步步骤")
+            nodes = list(existing.dag.get("nodes", []))
+            # 1) 水合自定义步骤（应对进程重启后注册表丢失）
+            self._sync_custom_steps(nodes)
+            # 2) 追加注册表里新出现的内置步骤（保留已有 enabled 选择）
+            present = {n["key"] for n in nodes}
+            changed = False
+            for k, s in STEP_REGISTRY.items():
+                if is_custom_key(k) or k in present:
+                    continue
+                nodes.append({"key": k, "enabled": s.meta.default_enabled})
+                changed = True
+            if changed:
+                existing.dag = {"nodes": nodes}
+                logger.info("默认模板已追加注册表新增步骤")
             return existing
         nodes = [
             {"key": s.meta.key, "enabled": s.meta.default_enabled}
             for s in STEP_REGISTRY.values()
+            if not is_custom_key(s.meta.key)
         ]
         tpl = PipelineTemplate(
             name="精品剧默认流程", version=1, dag={"nodes": nodes}, is_default=True
@@ -125,14 +153,26 @@ class PipelineService:
         self, db: AsyncSession, tpl_id: int, data: TemplateUpdate
     ) -> PipelineTemplate:
         tpl = await self.get_template(db, tpl_id)
-        unknown = [n.key for n in data.dag.nodes if n.key not in STEP_REGISTRY]
-        if unknown:
-            raise BizError(f"未知步骤：{unknown}", code=ErrorCode.PARAM_ERROR)
+        for n in data.dag.nodes:
+            if n.custom:
+                if not is_custom_key(n.key):
+                    raise BizError(
+                        f"自定义步骤 key 必须以 custom_ 开头：{n.key}",
+                        code=ErrorCode.PARAM_ERROR,
+                    )
+                if not n.outputs:
+                    raise BizError("自定义步骤至少要声明一个输出", code=ErrorCode.PARAM_ERROR)
+            elif n.key not in STEP_REGISTRY:
+                raise BizError(f"未知步骤：{n.key}", code=ErrorCode.PARAM_ERROR)
         if data.name:
             tpl.name = data.name
-        tpl.dag = {"nodes": [n.model_dump() for n in data.dag.nodes]}
+        nodes = [n.model_dump(exclude_none=True) for n in data.dag.nodes]
+        tpl.dag = {"nodes": nodes}
         tpl.version += 1
-        await db.flush()
+        # 把最新自定义步骤定义同步进注册表，使其立即可被编排/执行
+        self._sync_custom_steps(nodes)
+        # 显式提交：保证「保存后立即发起运行」能读到最新 DAG（避免读到旧快照）
+        await db.commit()
         return tpl
 
     # ------------------------------------------------------------- 运行
@@ -140,6 +180,8 @@ class PipelineService:
         self, db: AsyncSession, template_id: int, input_text: str
     ) -> PipelineRun:
         tpl = await self.get_template(db, template_id)
+        # 执行前确保自定义步骤已注册（应对进程重启 / 跨实例）
+        self._sync_custom_steps(tpl.dag.get("nodes", []))
         run = PipelineRun(
             template_id=tpl.id,
             template_version=tpl.version,
@@ -151,6 +193,7 @@ class PipelineService:
         run_id = run.id
         enabled = [n["key"] for n in tpl.dag.get("nodes", []) if n.get("enabled")]
         # 后台异步执行（项目选型：进程内 asyncio 编排）
+        await db.commit()
         task = asyncio.create_task(self._execute(run_id, input_text, enabled))
         _BACKGROUND_TASKS.add(task)
         task.add_done_callback(_BACKGROUND_TASKS.discard)
@@ -196,8 +239,24 @@ class PipelineService:
                         row.error = fields["error"]
                     await db.commit()
 
+            seq = {"n": 0}
+
             async def emit(event: dict) -> None:
                 await broker.publish(event)
+                # 落库执行事件（去掉体积大的 blackboard，避免与 run.blackboard 重复膨胀）
+                payload = {k: v for k, v in event.items() if k != "blackboard"}
+                async with db_lock:
+                    seq["n"] += 1
+                    db.add(
+                        PipelineRunEvent(
+                            run_id=run_id,
+                            seq=seq["n"],
+                            type=event.get("type", ""),
+                            step_key=event.get("step"),
+                            payload=payload,
+                        )
+                    )
+                    await db.commit()
 
             blackboard: dict[str, Any] = {}
             ctx = RunContext(
@@ -218,7 +277,15 @@ class PipelineService:
                 await broker.publish({"type": "run_finished", "error": str(exc)})
             await db.commit()
 
-    async def get_run_detail(self, db: AsyncSession, run_id: int) -> dict:
+    async def list_runs(self, db: AsyncSession, limit: int = 30) -> list[PipelineRun]:
+        rows = await db.scalars(
+            select(PipelineRun).order_by(PipelineRun.id.desc()).limit(limit)
+        )
+        return list(rows)
+
+    async def get_run_detail(
+        self, db: AsyncSession, run_id: int, *, with_events: bool = False
+    ) -> dict:
         run = await db.get(PipelineRun, run_id)
         if not run:
             raise BizError("运行不存在", code=ErrorCode.NOT_FOUND)
@@ -227,7 +294,15 @@ class PipelineService:
             .where(PipelineStepRun.run_id == run_id)
             .order_by(PipelineStepRun.id)
         )
-        return {"run": run, "steps": list(rows)}
+        detail: dict = {"run": run, "steps": list(rows)}
+        if with_events:
+            evs = await db.scalars(
+                select(PipelineRunEvent)
+                .where(PipelineRunEvent.run_id == run_id)
+                .order_by(PipelineRunEvent.seq)
+            )
+            detail["events"] = list(evs)
+        return detail
 
 
 pipeline_service = PipelineService()

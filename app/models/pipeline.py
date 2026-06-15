@@ -36,6 +36,21 @@ class PipelineRun(BaseModel):
     error: Mapped[str | None] = mapped_column(Text, comment="错误信息")
 
 
+class PipelineRunEvent(BaseModel):
+    """一次运行的执行事件流（日志 / Agent 自检 / 关键帧 / 步骤状态），用于历史回看与排查。
+
+    实时事件本走内存 SSE 广播；这里把它落库，保证刷新 / 进程重启后仍可完整回放执行记录。
+    """
+
+    __tablename__ = "pipeline_run_event"
+
+    run_id: Mapped[int] = mapped_column(BigInteger, index=True, comment="运行ID")
+    seq: Mapped[int] = mapped_column(Integer, default=0, comment="事件序号（稳定排序）")
+    type: Mapped[str] = mapped_column(String(32), comment="事件类型")
+    step_key: Mapped[str | None] = mapped_column(String(64), comment="所属步骤key")
+    payload: Mapped[dict | None] = mapped_column(JSON, comment="事件完整内容")
+
+
 class PipelineStepRun(BaseModel):
     """单个步骤在一次运行中的执行记录。"""
 

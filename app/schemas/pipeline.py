@@ -23,6 +23,14 @@ class StepInfo(BaseModel):
 class DagNode(BaseModel):
     key: str
     enabled: bool = True
+    # 档位 C：自定义步骤携带完整定义（IO 契约 + 提示词），随模板落库
+    custom: bool = False
+    name: str | None = None
+    kind: str | None = None
+    inputs: list[str] | None = None
+    outputs: list[str] | None = None
+    prompt: str | None = None
+    description: str | None = None
 
 
 class DagConfig(BaseModel):

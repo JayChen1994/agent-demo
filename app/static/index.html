@@ -101,6 +101,45 @@
       font-family:ui-monospace,Menlo,monospace}
     .logline{color:#9fb0c3;padding:2px 0}
     .logline .tag{color:var(--accent)}
+    /* 自定义步骤：删除按钮 + 新增弹窗（档位 C） */
+    .del-x{color:var(--dim);font-size:13px;cursor:pointer;padding:0 4px;line-height:1}
+    .del-x:hover{color:var(--fail)}
+    .title-actions{display:flex;gap:8px}
+    .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;
+      align-items:center;justify-content:center;z-index:95}
+    .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+      padding:22px 24px;width:540px;max-width:92vw;max-height:88vh;overflow:auto;
+      box-shadow:0 24px 60px rgba(0,0,0,.5)}
+    .modal h3{font-size:16px;margin-bottom:6px}
+    .modal .hint{color:var(--dim);font-size:12px;margin-bottom:18px;line-height:1.6}
+    .field{margin-bottom:15px}
+    .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:6px}
+    .field input,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--line);
+      border-radius:8px;color:var(--txt);padding:9px 11px;font-family:inherit;font-size:13px}
+    .field textarea{min-height:96px;resize:vertical}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .chip{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;
+      padding:3px 10px;color:var(--dim);cursor:pointer;font-family:ui-monospace,Menlo,monospace}
+    .chip:hover{border-color:var(--accent);color:var(--accent)}
+    .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+    /* 运行历史 */
+    .hist-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto}
+    .hist-item{display:flex;align-items:center;gap:8px;background:var(--panel2);
+      border:1px solid var(--line);border-radius:8px;padding:8px 11px;cursor:pointer;
+      font-size:12px;transition:.15s}
+    .hist-item:hover{border-color:var(--accent)}
+    .hist-item .hid{font-family:ui-monospace,Menlo,monospace;color:var(--dim)}
+    .hist-item .hprev{flex:1;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .hist-item .htime{color:var(--skip);font-size:11px}
+    .st-badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600}
+    .st-badge.completed{background:rgba(63,185,80,.16);color:var(--ok)}
+    .st-badge.running{background:rgba(88,166,255,.16);color:var(--run)}
+    .st-badge.failed{background:rgba(248,81,73,.16);color:var(--fail)}
+    .st-badge.pending{background:rgba(110,118,129,.16);color:var(--skip)}
+    .rec-step{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+    .rec-step .rn{flex:1;font-weight:600;font-size:13px}
+    .rec-step .rc{color:var(--dim);font-size:11px}
+    .rec-rounds{margin:2px 0 8px 16px}
   </style>
 </head>
 <body>
@@ -115,10 +154,14 @@
     <div class="col left">
       <div class="section-title">
         <span>流程编排 · {{ template.name }} v{{ template.version }}</span>
-        <button class="btn-ghost" @click="saveTemplate">保存编排</button>
+        <span class="title-actions">
+          <button class="btn-ghost" @click="openAdd">+ 自定义步骤</button>
+          <button class="btn-ghost" @click="saveTemplate">保存编排</button>
+        </span>
       </div>
       <p style="color:var(--dim);font-size:12px;margin-bottom:16px">
-        开关任意步骤即可增减流程，引擎按步骤的 输入/输出 契约自动推导依赖与并行。
+        开关任意步骤即可增减流程；点「+ 自定义步骤」可<b style="color:var(--llm)">零代码新增一个流程</b>，
+        引擎按 输入/输出 契约自动把它编排进 DAG。
       </p>
       <div v-for="(items,g) in groupedSteps" :key="g" class="group">
         <div class="group-name">{{ g }}</div>
@@ -127,6 +170,8 @@
           <div class="step-head">
             <span class="step-name">{{ s.name }}</span>
             <span class="badge" :class="s.kind">{{ s.kind }}</span>
+            <span v-if="s.custom" class="del-x" title="删除自定义步骤"
+                  @click.stop="removeCustom(s.key)">✕</span>
             <div class="switch" :class="{on:enabled[s.key]}"><i></i></div>
           </div>
           <div class="step-desc">{{ s.description }}</div>
@@ -148,6 +193,21 @@
         <button class="btn-primary" :disabled="running" @click="runPipeline">
           {{ running ? '执行中…' : '▶ 执行流水线' }}
         </button>
+      </div>
+
+      <div v-if="runs.length" style="margin-bottom:20px">
+        <div class="section-title">
+          <span>运行历史 · 已落库可回看（{{ runs.length }}）</span>
+          <button class="btn-ghost" @click="loadRuns">刷新</button>
+        </div>
+        <div class="hist-list">
+          <div v-for="r in runs" :key="r.id" class="hist-item" @click="viewRun(r.id)">
+            <span class="hid">#{{ r.id }}</span>
+            <span class="st-badge" :class="r.status">{{ statusCN(r.status) }}</span>
+            <span class="hprev">v{{ r.template_version }} · {{ r.input_preview }}…</span>
+            <span class="htime">{{ shortTime(r.created_at) }}</span>
+          </div>
+        </div>
       </div>
 
       <div class="legend">
@@ -217,6 +277,104 @@
     </div>
   </div>
 
+  <!-- 档位 C：新增自定义步骤弹窗 -->
+  <div v-if="showAdd" class="modal-mask" @click.self="showAdd=false">
+    <div class="modal">
+      <h3>新增自定义步骤 · 档位 C（零代码 / 不发版）</h3>
+      <p class="hint">
+        只需声明 输入 / 输出 / 提示词，引擎按 IO 契约自动把它编排进 DAG——
+        不改执行器、不写 Python。输出会进入「黑板」，可被其它步骤继续消费。
+      </p>
+      <div class="field">
+        <label>步骤名称</label>
+        <input v-model="form.name" placeholder="如：台词润色、风格关键词、剧情打分" />
+      </div>
+      <div class="field">
+        <label>输入字段（消费的黑板 key，逗号分隔，可点下方标签快速添加）</label>
+        <input v-model="form.inputs" placeholder="如：shots, characters" />
+        <div class="chips">
+          <span class="chip" v-for="k in availableOutputs" :key="k" @click="addInput(k)">+ {{ k }}</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>输出字段（产出的黑板 key，逗号分隔）</label>
+        <input v-model="form.outputs" placeholder="如：polished_shots" />
+      </div>
+      <div class="field">
+        <label>提示词 system（告诉模型这一步要做什么）</label>
+        <textarea v-model="form.prompt"
+          placeholder="你是资深编剧。请基于镜头表 shots，为每个镜头润色更具画面感的台词，输出 polished_shots 数组…"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" @click="showAdd=false">取消</button>
+        <button class="btn-primary" @click="addCustom">添加并保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 运行历史回看（只读，来自落库的事件流） -->
+  <div v-if="hist" class="modal-mask" @click.self="hist=null">
+    <div class="modal" style="width:780px">
+      <h3>
+        运行记录 #{{ hist.id }}
+        <span class="st-badge" :class="hist.status">{{ statusCN(hist.status) }}</span>
+      </h3>
+      <p class="hint">
+        模板 v{{ hist.template_version }} · {{ shortTime(hist.created_at) }} ·
+        输入：{{ (hist.input_text || '').slice(0, 50) }}…
+      </p>
+
+      <div class="section-title">步骤执行</div>
+      <div>
+        <div v-for="s in hist.steps" :key="s.step_key">
+          <div class="rec-step">
+            <span class="dot" :class="s.status"></span>
+            <span class="rn">{{ s.name }}</span>
+            <span class="badge" :class="s.kind">{{ s.kind }}</span>
+            <span class="st-badge" :class="s.status">{{ statusCN(s.status) }}</span>
+            <span class="rc" v-if="s.cost_ms">{{ s.cost_ms }}ms</span>
+          </div>
+          <div class="rec-rounds" v-if="(histState[s.step_key]||{}).rounds && histState[s.step_key].rounds.length">
+            <div class="round" v-for="(r,ri) in histState[s.step_key].rounds" :key="ri">
+              <span>R{{ r.round }} {{ r.action }}:</span>
+              <span :class="r.passed===true?'r-pass':(r.passed===false?'r-fail':'')">{{ r.message }}</span>
+            </div>
+          </div>
+          <div class="rc" v-if="s.error" style="margin:-2px 0 8px 16px;color:var(--skip)">{{ s.error }}</div>
+        </div>
+      </div>
+
+      <div v-if="histKeyframes.length" style="margin-top:18px">
+        <div class="section-title">关键帧</div>
+        <div class="gallery">
+          <div v-for="(f,fi) in histKeyframes" :key="fi" class="frame" :class="{failed:!f.ok}">
+            <img v-if="f.ok" :src="f.url" :alt="'shot '+f.shot_no" loading="lazy" />
+            <div v-else class="ph">镜头 {{ f.shot_no }} 生图失败<br/>{{ f.error }}</div>
+            <div class="cap">镜头 {{ f.shot_no }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="histLogs.length" style="margin-top:18px">
+        <div class="section-title">活动日志（回放）</div>
+        <div class="logbox">
+          <div v-for="(l,i) in histLogs" :key="i" class="logline">
+            <span class="tag">[{{ l.step }}]</span> {{ l.message }}
+          </div>
+        </div>
+      </div>
+
+      <div v-if="hist.blackboard" style="margin-top:18px">
+        <div class="section-title">最终产物 · blackboard</div>
+        <pre>{{ pretty(hist.blackboard) }}</pre>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-ghost" @click="hist=null">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <div v-if="toast" class="toast">{{ toast }}</div>
 </div>
 
@@ -236,6 +394,9 @@ createApp({
       running: false, runId: null,
       stepState: {}, blackboard: null, toast: "",
       keyframes: [], logs: [],
+      showAdd: false,
+      form: { name: "", inputs: "", outputs: "", prompt: "" },
+      runs: [], hist: null, histState: {}, histLogs: [], histKeyframes: [],
     };
   },
   computed: {
@@ -246,6 +407,11 @@ createApp({
     },
     enabledKeys() {
       return this.steps.filter(s => this.enabled[s.key]).map(s => s.key);
+    },
+    availableOutputs() {
+      const s = new Set();
+      this.steps.forEach(st => (st.outputs || []).forEach(o => s.add(o)));
+      return [...s];
     },
     layers() {
       const keys = this.enabledKeys;
@@ -281,6 +447,49 @@ createApp({
     },
     flash(msg) { this.toast = msg; setTimeout(() => (this.toast = ""), 2200); },
     pretty(o) { return JSON.stringify(o, null, 2); },
+    statusCN(s) {
+      return ({ pending: "未开始", running: "执行中", completed: "完成",
+        failed: "失败", skipped: "跳过" })[s] || s;
+    },
+    shortTime(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      return isNaN(d) ? iso : d.toLocaleString("zh-CN", { hour12: false });
+    },
+    async loadRuns() {
+      const r = await this.api("GET", `${API}/runs`);
+      this.runs = r.data || [];
+    },
+    async viewRun(id) {
+      const r = await this.api("GET", `${API}/runs/${id}`);
+      const d = r.data;
+      // 用落库的事件流重建执行记录（与实时 SSE 同一套结构）
+      const state = {}, logs = [], frames = [];
+      d.steps.forEach(s => (state[s.step_key] =
+        { status: s.status, rounds: [], cost_ms: s.cost_ms, reason: s.error }));
+      const ensure = k => (state[k] || (state[k] = { status: "pending", rounds: [], cost_ms: 0 }));
+      (d.events || []).forEach(ev => {
+        if (ev.type === "agent_round" && ev.step)
+          ensure(ev.step).rounds.push({ round: ev.round, action: ev.action,
+            message: ev.message, passed: ev.passed });
+        else if (ev.type === "log")
+          logs.push({ step: ev.step, message: ev.message });
+        else if (ev.type === "keyframe") {
+          frames.push({ shot_no: ev.shot_no, url: ev.url, ok: ev.ok, error: ev.error });
+          logs.push({ step: ev.step, message: ev.ok
+            ? `镜头 ${ev.shot_no} 出图 ✓` : `镜头 ${ev.shot_no} 生图失败：${ev.error}` });
+        }
+      });
+      // 回退：早期运行没存 keyframe 事件时，用最终 blackboard.keyframes 回显图片
+      if (!frames.length && d.blackboard && Array.isArray(d.blackboard.keyframes)) {
+        d.blackboard.keyframes.forEach(k => frames.push({
+          shot_no: k.shot_no, url: k.image_url,
+          ok: !!k.image_url, error: k.error,
+        }));
+      }
+      this.histState = state; this.histLogs = logs; this.histKeyframes = frames;
+      this.hist = d;
+    },
     state(key) {
       return this.stepState[key] || { status: "pending", rounds: [], cost_ms: 0 };
     },
@@ -291,22 +500,84 @@ createApp({
     toggle(key) { this.enabled[key] = !this.enabled[key]; },
     async load() {
       const sr = await this.api("GET", `${API}/steps`);
-      this.steps = sr.data;
-      this.byKey = Object.fromEntries(this.steps.map(s => [s.key, s]));
+      const steps = sr.data.slice();
       const tr = await this.api("GET", `${API}/templates`);
       const tpl = tr.data[0];
       this.template = { id: tpl.id, name: tpl.name, version: tpl.version };
+      const nodes = tpl.dag.nodes || [];
+      // 把模板里的自定义步骤（含完整定义）合并进步骤列表，供左栏卡片 + DAG 渲染
+      nodes.filter(n => n.custom).forEach(n => {
+        if (!steps.find(s => s.key === n.key)) {
+          steps.push({
+            key: n.key, name: n.name || n.key, kind: n.kind || "llm",
+            inputs: n.inputs || [], outputs: n.outputs || [],
+            description: n.description || "", group: "自定义",
+            default_enabled: true, custom: true, prompt: n.prompt || "",
+          });
+        }
+      });
+      this.steps = steps;
+      this.byKey = Object.fromEntries(steps.map(s => [s.key, s]));
       const map = {};
-      this.steps.forEach(s => (map[s.key] = false));
-      tpl.dag.nodes.forEach(n => (map[n.key] = !!n.enabled));
+      steps.forEach(s => (map[s.key] = false));
+      nodes.forEach(n => (map[n.key] = !!n.enabled));
       this.enabled = map;
     },
+    nodesPayload() {
+      // 内置步骤只回传 {key,enabled}；自定义步骤回传完整定义以便落库
+      return this.steps.map(s => {
+        const base = { key: s.key, enabled: !!this.enabled[s.key] };
+        if (!s.custom) return base;
+        return {
+          ...base, custom: true, name: s.name, kind: s.kind || "llm",
+          inputs: s.inputs || [], outputs: s.outputs || [],
+          prompt: s.prompt || "", description: s.description || "",
+        };
+      });
+    },
     async saveTemplate() {
-      const nodes = this.steps.map(s => ({ key: s.key, enabled: !!this.enabled[s.key] }));
       const r = await this.api("PUT", `${API}/templates/${this.template.id}`,
-        { dag: { nodes } });
+        { dag: { nodes: this.nodesPayload() } });
+      if (r.code !== 0) { this.flash(r.msg || "保存失败"); return false; }
       this.template.version = r.data.version;
       this.flash(r.msg || "已保存");
+      return true;
+    },
+    openAdd() {
+      this.form = { name: "", inputs: "", outputs: "", prompt: "" };
+      this.showAdd = true;
+    },
+    addInput(k) {
+      const cur = this.form.inputs.split(/[,，]/).map(x => x.trim()).filter(Boolean);
+      if (!cur.includes(k)) cur.push(k);
+      this.form.inputs = cur.join(", ");
+    },
+    parseCsv(s) {
+      return (s || "").split(/[,，]/).map(x => x.trim()).filter(Boolean);
+    },
+    async addCustom() {
+      const name = this.form.name.trim();
+      const outputs = this.parseCsv(this.form.outputs);
+      if (!name) { this.flash("请填写步骤名称"); return; }
+      if (!outputs.length) { this.flash("请至少声明一个输出字段"); return; }
+      const key = "custom_" + Date.now().toString(36);
+      const step = {
+        key, name, kind: "llm",
+        inputs: this.parseCsv(this.form.inputs), outputs,
+        description: "运行时配置的通用 LLM 步骤", group: "自定义",
+        default_enabled: true, custom: true, prompt: this.form.prompt.trim(),
+      };
+      this.steps.push(step);
+      this.byKey[key] = step;
+      this.enabled[key] = true;
+      this.showAdd = false;
+      await this.saveTemplate();
+    },
+    async removeCustom(key) {
+      this.steps = this.steps.filter(s => s.key !== key);
+      delete this.byKey[key];
+      delete this.enabled[key];
+      await this.saveTemplate();
     },
     async runPipeline() {
       await this.saveTemplate();
@@ -351,13 +622,14 @@ createApp({
           case "run_finished":
             this.running = false; es.close();
             if (ev.blackboard) this.blackboard = ev.blackboard;
+            this.loadRuns();
             this.flash("流水线执行完成"); break;
         }
       };
       es.onerror = () => { es.close(); this.running = false; };
     },
   },
-  mounted() { this.load(); },
+  mounted() { this.load(); this.loadRuns(); },
 }).mount("#app");
 </script>
 </body>
